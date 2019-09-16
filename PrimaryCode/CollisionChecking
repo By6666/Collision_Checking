@@ -1,0 +1,190 @@
+double euclideanDist(int aX, int aY, int bX, int bY)
+{
+    return sqrt((aX - bX)*(aX - bX) + (aY - bY)*(aY - bY));
+}
+
+//two lines 90degree
+double euclideanDist(double a, double b)
+{
+    return sqrt(a*a + b*b);
+}
+
+//get order for intersection checking
+int order(Boundary bLine,geometry_msgs::Point pt)
+{
+    int intOrientation=(bLine.pEnd.y-bLine.pStart.y)*(pt.x-bLine.pEnd.x)-(bLine.pEnd.x-bLine.pStart.x)*(pt.y-bLine.pEnd.y);
+    if(intOrientation==0)return 0;//colinear
+    if(intOrientation>0)return 1;//right side
+    if(intOrientation<0)return -1; //left side
+}
+//for intersection checking
+bool onSegment(Boundary bLine, geometry_msgs::Point pt)
+{
+    if((pt.x<=max(bLine.pStart.x,bLine.pEnd.x))&&(pt.x>=min(bLine.pStart.x,bLine.pEnd.x))&&(pt.y<=max(bLine.pStart.y,bLine.pEnd.y))&&(pt.y>=min(bLine.pStart.y, bLine.pEnd.y)))
+    {return true;}
+    else
+    {return false;}
+}
+
+//check if tow lines are intersected
+bool intersection(Boundary bLine1, Boundary bLine2)
+{
+    int order1= order(bLine1,bLine2.pStart);
+    int order2= order(bLine1,bLine2.pEnd);
+    int order3= order(bLine2,bLine1.pStart);
+    int order4= order(bLine2,bLine1.pEnd);
+    if(order1!=order2&&order3!=order4){return true;}
+    if(order1==0 && onSegment(bLine1,bLine2.pStart)){return true;}
+    if(order2==0 && onSegment(bLine1,bLine2.pEnd)){return true;}
+    if(order3==0 && onSegment(bLine2,bLine1.pStart)){return true;}
+    if(order4==0 && onSegment(bLine2,bLine1.pEnd)){return true;}
+    false;
+}
+// get new point after rotated by axis z
+geometry_msgs::Point rotateByZ(geometry_msgs::Point pt, double dTheta)
+{
+    geometry_msgs::Point ptResult;
+    double dAngle = dTheta / 3.14159 * 180;
+    ptResult.x = cos(dAngle) * pt.x - sin(dAngle) * pt.y;
+    ptResult.y = sin(dAngle) * pt.x + cos(dAngle) * pt.y;
+    return ptResult;
+
+}
+
+//check if collide
+bool isCollision(CarPose cpA,CarPose cpB)
+{
+    double dDist=euclideanDist(cpA.position.x,cpA.position.y,cpB.position.x,cpB.position.y);
+    if(dDist> cpA.dRadiusOutter + cpB.dRadiusOutter)
+    {
+        return false;
+    }
+    if(dDist< cpA.dRadiusInner+cpB.dRadiusInner)
+    {
+        return true;
+    }
+
+    //otherwise check boundary box
+    //  pt4   pt1
+    //     ego
+    //  pt3   pt2
+    geometry_msgs::Point ptA1;
+    ptA1.x=cpA.position.x+0.5*cpA.dLength;
+    ptA1.y=cpA.position.y+0.5*cpA.dWidth;
+
+    geometry_msgs::Point ptA2;
+    ptA2.x=cpA.position.x+0.5*cpA.dLength;
+    ptA2.y=cpA.position.y-0.5*cpA.dWidth;
+
+    geometry_msgs::Point ptA3;
+    ptA3.x=cpA.position.x-0.5*cpA.dLength;
+    ptA3.y=cpA.position.y-0.5*cpA.dWidth;
+
+    geometry_msgs::Point ptA4;
+    ptA4.x=cpA.position.x-0.5*cpA.dLength;
+    ptA4.y=cpA.position.y+0.5*cpA.dWidth;
+    if(cpA.position.theta!=0)
+    {
+        ptA1=rotateByZ(ptA1,cpA.position.theta);
+        ptA2=rotateByZ(ptA2,cpA.position.theta);
+        ptA3=rotateByZ(ptA3,cpA.position.theta);
+        ptA4=rotateByZ(ptA4,cpA.position.theta);
+    }
+
+    //     4
+    //  3 ego 1
+    //     2
+    //  pt4   pt1
+    //     ego
+    //  pt3   pt2
+    std::vector<Boundary> bA;
+    Boundary bA1;
+    bA1.pStart.x=ptA1.x;
+    bA1.pStart.y=ptA1.y;
+    bA1.pEnd.x=ptA2.x;
+    bA1.pEnd.y=ptA2.y;
+    bA.push_back(bA1);
+
+    Boundary bA2;
+    bA2.pStart.x=ptA2.x;
+    bA2.pStart.y=ptA2.y;
+    bA2.pEnd.x=ptA3.x;
+    bA2.pEnd.y=ptA3.y;
+    bA.push_back(bA2);
+
+    Boundary bA3;
+    bA3.pStart.x=ptA3.x;
+    bA3.pStart.y=ptA3.y;
+    bA3.pEnd.x=ptA4.x;
+    bA3.pEnd.y=ptA4.y;
+    bA.push_back(bA3);
+
+    Boundary bA4;
+    bA4.pStart.x=ptA4.x;
+    bA4.pStart.y=ptA4.y;
+    bA4.pEnd.x=ptA1.x;
+    bA4.pEnd.y=ptA1.y;
+    bA.push_back(bA4);
+
+    //B
+    geometry_msgs::Point ptB1;
+    ptB1.x=cpB.position.x+0.5*cpB.dLength;
+    ptB1.y=cpB.position.y+0.5*cpB.dWidth;
+
+    geometry_msgs::Point ptB2;
+    ptB2.x=cpB.position.x+0.5*cpB.dLength;
+    ptB2.y=cpB.position.y+0.5*cpB.dWidth;
+
+    geometry_msgs::Point ptB3;
+    ptB3.x=cpB.position.x+0.5*cpB.dLength;
+    ptB3.y=cpB.position.y+0.5*cpB.dWidth;
+
+    geometry_msgs::Point ptB4;
+    ptB4.x=cpB.position.x+0.5*cpB.dLength;
+    ptB4.y=cpB.position.y+0.5*cpB.dWidth;
+    if(cpB.position.theta!=0)
+    {
+        ptB1=rotateByZ(ptB1,cpB.position.theta);
+        ptB2=rotateByZ(ptB2,cpB.position.theta);
+        ptB3=rotateByZ(ptB3,cpB.position.theta);
+        ptB4=rotateByZ(ptB4,cpB.position.theta);
+    }
+
+    std::vector<Boundary> bB;
+    Boundary bB1;
+    bB1.pStart.x=ptB1.x;
+    bB1.pStart.y=ptB1.y;
+    bB1.pEnd.x=ptB2.x;
+    bB1.pEnd.y=ptB2.y;
+    bB.push_back(bB1);
+
+    Boundary bB2;
+    bB2.pStart.x=ptB2.x;
+    bB2.pStart.y=ptB2.y;
+    bB2.pEnd.x=ptB3.x;
+    bB2.pEnd.y=ptB3.y;
+    bB.push_back(bB2);
+
+    Boundary bB3;
+    bB3.pStart.x=ptB3.x;
+    bB3.pStart.y=ptB3.y;
+    bB3.pEnd.x=ptB4.x;
+    bB3.pEnd.y=ptB4.y;
+    bB.push_back(bB3);
+
+    Boundary bB4;
+    bB4.pStart.x=ptB4.x;
+    bB4.pStart.y=ptB4.y;
+    bB4.pEnd.x=ptB1.x;
+    bB4.pEnd.y=ptB1.y;
+    bB.push_back(bB4);
+
+    for (int i = 0; i < bA.size(); i++)
+    {
+        for (int j = 0; j < bB.size(); j++) {
+            if(intersection(bA[i], bB[j]))
+            {return true;}
+        }
+    }
+    return false;
+}
